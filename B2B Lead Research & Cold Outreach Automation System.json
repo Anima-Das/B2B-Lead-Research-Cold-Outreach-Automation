@@ -1,0 +1,4823 @@
+{
+  "name": "01 B2B Lead Research & Cold Outreach Automation System",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "id": "428f746d-fca9-4086-825a-37ec9ff78c19",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        1888
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalize the incoming lead row. Never invents realistic-looking\n// fake data (no \"John Doe\", no \"Acme Corp\", no example.com fallbacks).\n// Missing fields are reported as missing, not guessed.\n\nfunction normalizeUrl(raw) {\n  if (!raw || typeof raw !== 'string') return { url: '', valid: false };\n  let u = raw.trim();\n  if (!u) return { url: '', valid: false };\n  if (!/^https?:\\/\\//i.test(u)) u = 'https://' + u;\n  u = u.replace(/\\/+$/, '');\n  try {\n    // Will throw on a genuinely malformed URL\n    new URL(u);\n    return { url: u, valid: true };\n  } catch (e) {\n    return { url: u, valid: false };\n  }\n}\n\nconst trigger = $input.item.json || {};\n\nconst name = (trigger.Name || '').toString().trim();\nconst email = (trigger.Email || '').toString().trim().toLowerCase();\nconst company = (trigger.Company || '').toString().trim();\nconst linkedinUrlRaw = (trigger.LinkedIn_URL || '').toString().trim();\n\nconst companyUrlResult = normalizeUrl(trigger.Company_URL);\nconst linkedinUrlResult = linkedinUrlRaw ? normalizeUrl(linkedinUrlRaw) : { url: '', valid: false };\n\nreturn {\n  json: {\n    row_number: trigger.row_number ?? null,\n    Name: name,\n    Email: email,\n    Company: company,\n    Company_URL: companyUrlResult.valid ? companyUrlResult.url : '',\n    LinkedIn_URL: linkedinUrlResult.valid ? linkedinUrlResult.url : '',\n    missing_email: !email,\n    missing_company_url: !companyUrlResult.valid,\n    missing_company_name: !company,\n    company_url_raw_invalid: Boolean(trigger.Company_URL) && !companyUrlResult.valid,\n  }\n};"
+      },
+      "id": "efacad62-7e2b-445d-9b9b-344cc52cf4d3",
+      "name": "Normalize Lead Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        1856
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d7987114-f24a-44ba-abc0-3f46b32c9ad4",
+              "leftValue": "={{ $json.missing_email }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5fccc06a-b75d-41b8-8e67-75782cd70cef",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        336,
+        1856
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.Name }}",
+            "Email": "={{ 'missing-email-row-' + ($json.row_number || Date.now()) }}",
+            "Company": "={{ $json.Company }}",
+            "Company_URL": "={{ $json.Company_URL }}",
+            "Status": "Missing Email",
+            "Research Status": "skipped_no_email"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "68e716ec-ceba-43d2-88a0-3ab69bc23a32",
+      "name": "Log Missing Email",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        416,
+        1568
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Local, offline email FORMAT validation.\n// This checks only that the address is syntactically well-formed.\n// It does NOT verify that the mailbox exists, is deliverable, or is\n// not disposable - it is a format check, not a mailbox check.\n// No API key, token, credential, or external service is used or required.\n\nconst item = $input.item.json || {};\nconst email = (item.Email || '').toString().trim();\n\n// Pragmatic RFC5322-style pattern (non-backtracking, bounded label\n// lengths) - good enough to catch malformed addresses without\n// claiming to prove deliverability.\nconst EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;\n\nlet status = 'invalid';\nlet reason = 'empty_email';\n\nif (email) {\n  if (email.length > 254) {\n    status = 'invalid';\n    reason = 'exceeds_max_length';\n  } else if (!EMAIL_REGEX.test(email)) {\n    status = 'invalid';\n    reason = 'format_does_not_match_pattern';\n  } else {\n    status = 'valid';\n    reason = 'format_valid';\n  }\n}\n\nreturn {\n  json: {\n    ...item,\n    status,\n    reason,\n    source: 'local_format_check',\n  }\n};"
+      },
+      "id": "b091e7c2-429c-4342-9405-0c0d52facdb1",
+      "name": "Email Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Classify the local email-format validation result. A missing or\n// unrecognized result is NEVER treated as \"valid\" - it is routed to\n// manual review instead. No external API is used here.\n\nconst lead = $('Normalize Lead Input').item.json;\nconst resp = $input.item.json || {};\n\nlet status = 'unknown';\nlet manualReview = true;\nlet source = 'Local_Format_Check';\n\nconst raw = (resp.status || '').toString().toLowerCase();\nif (raw === 'valid') { status = 'valid'; manualReview = false; }\nelse if (raw === 'invalid') { status = 'invalid'; manualReview = false; }\nelse { status = 'unknown'; manualReview = true; }\n\nreturn {\n  json: {\n    ...lead,\n    email_validation_status: status,\n    email_validation_source: source,\n    email_validation_manual_review: manualReview,\n    email_validation_raw: {\n      reason: resp.reason || null,\n    },\n  }\n};"
+      },
+      "id": "5b756533-32ee-4830-9aff-967c6224886f",
+      "name": "Normalize Validation Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "397dbec0-cfbc-45ad-8d56-23d29e7caaa2",
+              "leftValue": "={{ $json.email_validation_status }}",
+              "rightValue": "valid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "6c2b9729-c893-4dd9-b9ea-feca7f95ce20",
+              "leftValue": "={{ $json.email_validation_status }}",
+              "rightValue": "unknown",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "4f588498-af30-4b3c-b8f4-a691616a79f5",
+              "leftValue": "={{ $json.email_validation_status }}",
+              "rightValue": "api_error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "ef5ae67a-3216-4dbf-9321-6a781da0eff3",
+      "name": "Email Acceptable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -416,
+        2144
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.Name }}",
+            "Email": "={{ $json.Email }}",
+            "Company": "={{ $json.Company }}",
+            "Company_URL": "={{ $json.Company_URL }}",
+            "Email Validation Status": "={{ $json.email_validation_status }}",
+            "Validation Source": "={{ $json.email_validation_source }}",
+            "Status": "={{ $json.email_validation_status === 'disposable' ? 'Disposable Email - Skipped' : 'Invalid Email - Skipped' }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "01d2e8f1-2329-4499-8132-99ae57e3a359",
+      "name": "Log Invalid Email",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        160,
+        1552
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.Company_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 5
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 12000
+        }
+      },
+      "id": "ba66a4ef-e761-4989-88d6-6afe092e480e",
+      "name": "Homepage Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -96,
+        2128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function stripHtml(html, limit) {\n  if (!html) return '';\n  if (typeof html !== 'string') {\n    try { html = JSON.stringify(html); } catch (e) { return ''; }\n  }\n  let text = html\n    .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ' ')\n    .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, ' ')\n    .replace(/<!--[\\s\\S]*?-->/g, ' ')\n    .replace(/<nav\\b[^<]*(?:(?!<\\/nav>)<[^<]*)*<\\/nav>/gi, ' ')\n    .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)<[^<]*)*<\\/footer>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/&quot;/gi, '\"')\n    .replace(/&#39;/gi, \"'\")\n    .replace(/&lt;/gi, '<')\n    .replace(/&gt;/gi, '>')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  return limit ? text.slice(0, limit) : text;\n}\n\n// Try a small set of realistic About-page URL variants. Stop at the\n// first one that returns real HTML content. No fabricated content.\n\nconst lead = $('Normalize Lead Input').item.json;\nconst base = lead.Company_URL;\n\nconst result = { available: false, url: '', content: '', source: 'about', reason: 'company_url_missing' };\n\nif (!base) {\n  return { json: { ...lead, about: result } };\n}\n\nconst candidates = ['/about', '/about-us', '/company', '/who-we-are'];\n\nfor (const path of candidates) {\n  const url = base + path;\n  try {\n    const res = await this.helpers.httpRequest({\n      method: 'GET',\n      url,\n      timeout: 8000,\n      returnFullResponse: true,\n      ignoreHttpStatusErrors: true,\n      headers: { 'User-Agent': 'Mozilla/5.0' },\n    });\n    const status = res.statusCode;\n    const body = typeof res.body === 'string' ? res.body : '';\n    const isHtml = /<html/i.test(body) || /<body/i.test(body) || /<p[\\s>]/i.test(body);\n    if (status >= 200 && status < 300 && body && isHtml) {\n      result.available = true;\n      result.url = url;\n      result.content = stripHtml(body, 2500);\n      result.reason = '';\n      break;\n    }\n  } catch (err) {\n    // try next candidate\n    continue;\n  }\n}\n\nif (!result.available) {\n  result.reason = 'page_not_found';\n}\n\nreturn { json: { ...lead, about: result } };"
+      },
+      "id": "ab4a2ab8-8654-4c59-9b94-de1cc25eb8fc",
+      "name": "About Page Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        2128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function stripHtml(html, limit) {\n  if (!html) return '';\n  if (typeof html !== 'string') {\n    try { html = JSON.stringify(html); } catch (e) { return ''; }\n  }\n  let text = html\n    .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ' ')\n    .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, ' ')\n    .replace(/<!--[\\s\\S]*?-->/g, ' ')\n    .replace(/<nav\\b[^<]*(?:(?!<\\/nav>)<[^<]*)*<\\/nav>/gi, ' ')\n    .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)<[^<]*)*<\\/footer>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/&quot;/gi, '\"')\n    .replace(/&#39;/gi, \"'\")\n    .replace(/&lt;/gi, '<')\n    .replace(/&gt;/gi, '>')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  return limit ? text.slice(0, limit) : text;\n}\n\n// Same pattern as About Page Research, for blog/news/content pages.\n\nconst lead = $('Normalize Lead Input').item.json;\nconst base = lead.Company_URL;\n\nconst result = { available: false, url: '', content: '', source: 'blog', reason: 'company_url_missing' };\n\nif (!base) {\n  return { json: { ...$input.item.json, blog: result } };\n}\n\nconst candidates = ['/blog', '/news', '/insights', '/resources', '/articles'];\n\nfor (const path of candidates) {\n  const url = base + path;\n  try {\n    const res = await this.helpers.httpRequest({\n      method: 'GET',\n      url,\n      timeout: 8000,\n      returnFullResponse: true,\n      ignoreHttpStatusErrors: true,\n      headers: { 'User-Agent': 'Mozilla/5.0' },\n    });\n    const status = res.statusCode;\n    const body = typeof res.body === 'string' ? res.body : '';\n    const isHtml = /<html/i.test(body) || /<body/i.test(body) || /<p[\\s>]/i.test(body);\n    if (status >= 200 && status < 300 && body && isHtml) {\n      result.available = true;\n      result.url = url;\n      result.content = stripHtml(body, 2500);\n      result.reason = '';\n      break;\n    }\n  } catch (err) {\n    continue;\n  }\n}\n\nif (!result.available) {\n  result.reason = 'page_not_found';\n}\n\nreturn { json: { ...$input.item.json, blog: result } };"
+      },
+      "id": "6a1c457d-b306-49ff-8d1a-fceb4151d0a6",
+      "name": "Blog Content Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        2128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function stripHtml(html, limit) {\n  if (!html) return '';\n  if (typeof html !== 'string') {\n    try { html = JSON.stringify(html); } catch (e) { return ''; }\n  }\n  let text = html\n    .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ' ')\n    .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, ' ')\n    .replace(/<!--[\\s\\S]*?-->/g, ' ')\n    .replace(/<nav\\b[^<]*(?:(?!<\\/nav>)<[^<]*)*<\\/nav>/gi, ' ')\n    .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)<[^<]*)*<\\/footer>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/&quot;/gi, '\"')\n    .replace(/&#39;/gi, \"'\")\n    .replace(/&lt;/gi, '<')\n    .replace(/&gt;/gi, '>')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  return limit ? text.slice(0, limit) : text;\n}\n\n// This workflow has no authenticated LinkedIn data provider. We only\n// attempt a best-effort public fetch of the URL the lead provided. If it\n// cannot be fetched (which is normal - LinkedIn blocks most automated\n// requests), LinkedIn data is marked unavailable. We NEVER fabricate a\n// job title, employee count, industry, location, or LinkedIn posts.\n\nconst lead = $input.item.json;\nconst url = lead.LinkedIn_URL;\n\nconst result = { available: false, source: 'linkedin', url: url || '', content: '', reason: 'not_available' };\n\nif (!url) {\n  result.reason = 'no_linkedin_url_provided';\n  return { json: { ...lead, linkedin: result } };\n}\n\ntry {\n  const res = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    timeout: 8000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n    headers: { 'User-Agent': 'Mozilla/5.0' },\n  });\n  const status = res.statusCode;\n  const body = typeof res.body === 'string' ? res.body : '';\n  if (status >= 200 && status < 300 && body && /<html/i.test(body)) {\n    result.available = true;\n    result.content = stripHtml(body, 1500);\n    result.reason = '';\n  } else {\n    result.reason = `fetch_blocked_status_${status}`;\n  }\n} catch (err) {\n  result.reason = 'fetch_failed';\n}\n\nreturn { json: { ...lead, linkedin: result } };"
+      },
+      "id": "a5964940-6389-41ba-a154-d5843def11bf",
+      "name": "LinkedIn Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        2128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Best-effort technology detection from publicly visible homepage HTML\n// evidence only (script tags, meta generators, known CDN/asset paths).\n// We explicitly distinguish confirmed vs inferred vs unknown and never\n// overclaim a \"confirmed technology stack\" without real evidence.\n\nconst lead = $input.item.json;\nlet homepageHtml = '';\ntry {\n  const homepageItem = $('Homepage Research').item;\n  homepageHtml = (homepageItem && typeof homepageItem.json.data === 'string') ? homepageItem.json.data : '';\n} catch (e) {\n  homepageHtml = '';\n}\n\nconst indicators = [\n  { name: 'WordPress', pattern: /wp-content|wp-includes|\\/wp-json\\//i, confidence: 'confirmed' },\n  { name: 'Shopify', pattern: /cdn\\.shopify\\.com|shopify-analytics/i, confidence: 'confirmed' },\n  { name: 'Webflow', pattern: /webflow\\.com|wf-page/i, confidence: 'confirmed' },\n  { name: 'Squarespace', pattern: /squarespace\\.com|static1\\.squarespace/i, confidence: 'confirmed' },\n  { name: 'HubSpot', pattern: /js\\.hs-scripts\\.com|hubspot\\.com\\/forms/i, confidence: 'confirmed' },\n  { name: 'Google Analytics', pattern: /googletagmanager\\.com|google-analytics\\.com\\/analytics\\.js|gtag\\(/i, confidence: 'confirmed' },\n  { name: 'Stripe (payments)', pattern: /js\\.stripe\\.com/i, confidence: 'confirmed' },\n  { name: 'Cloudflare', pattern: /cloudflare\\.com|cf-ray/i, confidence: 'inferred' },\n  { name: 'React', pattern: /data-reactroot|__next|_next\\/static/i, confidence: 'inferred' },\n  { name: 'Intercom', pattern: /widget\\.intercom\\.io/i, confidence: 'confirmed' },\n];\n\nconst found = [];\nif (homepageHtml) {\n  for (const ind of indicators) {\n    if (ind.pattern.test(homepageHtml)) {\n      found.push({ technology: ind.name, confidence: ind.confidence });\n    }\n  }\n}\n\nconst result = {\n  technographics: found,\n  confidence: found.length ? (found.some(f => f.confidence === 'confirmed') ? 'evidence_based' : 'inferred_only') : 'unknown',\n  source: 'homepage_html_scan',\n};\n\nreturn { json: { ...lead, technographics: result } };"
+      },
+      "id": "a0891d58-2c55-478e-997b-2667a99768ab",
+      "name": "Technographic Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        2128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build one clean, structured payload for the AI. Never overwrite real\n// lead fields with fake defaults. Every research source keeps its own\n// available/url/content/source/reason shape so the AI (and any human\n// reviewer) can see exactly what was and wasn't found.\n\nconst lead = $input.item.json;\nconst validation = $('Normalize Validation Result').item.json;\n\nconst homepageRaw = (() => {\n  try {\n    const item = $('Homepage Research').item;\n    return item && typeof item.json.data === 'string' ? item.json.data : '';\n  } catch (e) { return ''; }\n})();\n\nfunction stripHtml(html, limit) {\n  if (!html || typeof html !== 'string') return '';\n  const text = html\n    .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ' ')\n    .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  return limit ? text.slice(0, limit) : text;\n}\n\nconst homepage = {\n  available: Boolean(homepageRaw),\n  url: lead.Company_URL || '',\n  content: stripHtml(homepageRaw, 2500),\n  source: 'homepage',\n  reason: homepageRaw ? '' : (lead.Company_URL ? 'fetch_failed' : 'company_url_missing'),\n};\n\nconst about = lead.about || { available: false, url: '', content: '', source: 'about', reason: 'not_run' };\nconst blog = lead.blog || { available: false, url: '', content: '', source: 'blog', reason: 'not_run' };\nconst linkedin = lead.linkedin || { available: false, url: lead.LinkedIn_URL || '', content: '', source: 'linkedin', reason: 'not_run' };\nconst technographics = lead.technographics || { technographics: [], confidence: 'unknown', source: 'homepage_html_scan' };\n\nconst errors = [];\nif (!homepage.available) errors.push({ source: 'homepage', reason: homepage.reason });\nif (!about.available) errors.push({ source: 'about', reason: about.reason });\nif (!blog.available) errors.push({ source: 'blog', reason: blog.reason });\nif (!linkedin.available) errors.push({ source: 'linkedin', reason: linkedin.reason });\n\nconst sourcesAvailable = [homepage.available, about.available, blog.available].filter(Boolean).length;\nlet researchStatus = 'no_sources_available';\nif (sourcesAvailable === 3) researchStatus = 'full_research';\nelse if (sourcesAvailable > 0) researchStatus = 'partial_research';\nelse researchStatus = lead.Company_URL ? 'research_failed' : 'company_url_missing';\n\nreturn {\n  json: {\n    lead: {\n      name: lead.Name || '',\n      email: lead.Email || '',\n      company: lead.Company || '',\n      company_url: lead.Company_URL || '',\n      linkedin_url: lead.LinkedIn_URL || '',\n    },\n    email_validation: {\n      status: validation.email_validation_status,\n      source: validation.email_validation_source,\n      manual_review: validation.email_validation_manual_review,\n    },\n    research: { homepage, about, blog, linkedin, technographics },\n    research_status: researchStatus,\n    errors,\n    // Flat fields kept for convenience in downstream nodes/expressions\n    Name: lead.Name || '',\n    Email: lead.Email || '',\n    Company: lead.Company || '',\n    Company_URL: lead.Company_URL || '',\n    LinkedIn_URL: lead.LinkedIn_URL || '',\n  }\n};"
+      },
+      "id": "55a2de68-7b7c-4c93-8132-b5bff8b6fd46",
+      "name": "Data Consolidation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        2368
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-lite-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-flash-lite-latest",
+          "cachedResultUrl": ""
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ (() => {\n  const d = $json;\n  const evidence = [];\n  if (d.research.homepage.available) evidence.push('--- HOMEPAGE (' + d.research.homepage.url + ') ---\\n' + d.research.homepage.content);\n  if (d.research.about.available) evidence.push('--- ABOUT PAGE (' + d.research.about.url + ') ---\\n' + d.research.about.content);\n  if (d.research.blog.available) evidence.push('--- BLOG/CONTENT (' + d.research.blog.url + ') ---\\n' + d.research.blog.content);\n  if (d.research.linkedin.available) evidence.push('--- LINKEDIN (raw public page text, NOT structured data - ' + d.research.linkedin.url + ') ---\\n' + d.research.linkedin.content);\n  evidence.push('--- TECHNOGRAPHIC EVIDENCE ---\\n' + JSON.stringify(d.research.technographics));\n  const evidenceBlock = evidence.length ? evidence.join('\\n\\n') : 'No research evidence was retrieved for this company.';\n\n  return `You are an Enterprise B2B Lead Researcher & Cold Outreach Strategist.\n\nAnalyze ONLY the evidence provided below. Output ONLY a single valid, raw JSON object matching the schema at the end. No markdown, no code fences, no commentary before or after the JSON.\n\n--- PROSPECT ---\nName: ${d.lead.name || 'Unknown (use a generic greeting, never invent a name)'}\nEmail: ${d.lead.email}\nCompany: ${d.lead.company || 'Unknown (do not invent a company name)'}\nCompany URL: ${d.lead.company_url || 'N/A'}\nResearch status: ${d.research_status}\n\n--- EVIDENCE (only these sources are real; anything not in this section is unknown) ---\n${evidenceBlock}\n\n--- RULES ---\n1. Never invent facts. If a source is missing/unavailable, treat that topic as unknown - do not guess.\n2. Clearly separate observed facts from reasonable inference; use cautious language for inferences.\n3. data_confidence_score (0-100) reflects RESEARCH/DATA confidence, not lead quality. Fewer available sources or weaker evidence => lower score. A homepage-only result should normally score well below 80.\n4. If data_confidence_score >= 80, set strategy_used = \"Hyper-Personalized\". Otherwise set strategy_used = \"Value-First B2B Outreach Strategy\".\n5. Generate exactly 3 genuinely different subject line options (curiosity, direct value, pain-point). selected_subject MUST be an exact copy of one of the 3 options.\n6. Write a concise, professional 3-paragraph email body (hook, value pitch, soft CTA) using only the evidence above. No exaggerated claims, no spammy language.\n7. Set requires_human_flag = true whenever: company name is unknown, evidence is thin/contradictory, or you are not confident in the personalization.\n8. Never fabricate LinkedIn details (title, employee count, industry, location) beyond what literally appears in the LinkedIn evidence text, if present.\n9. List the specific evidence snippets/sources you actually used in \"evidence_used\".\n\n--- REQUIRED JSON OUTPUT (return exactly this shape, real values) ---\n{\n  \"status\": \"success\",\n  \"data_confidence_score\": 0,\n  \"strategy_used\": \"\",\n  \"company_summary\": \"\",\n  \"target_audience\": \"\",\n  \"identified_pain_point\": \"\",\n  \"evidence_used\": [],\n  \"email_subject_options\": [\"\", \"\", \"\"],\n  \"selected_subject\": \"\",\n  \"email_body\": \"\",\n  \"requires_human_flag\": false\n}`;\n})() }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "c1efc1ad-3004-43d5-80b0-934987c066e4",
+      "name": "AI Lead Analysis",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        2368
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Robustly parse the AI's JSON output. Never crash the workflow and\n// never fabricate email content when parsing fails.\n\nlet rawText = '';\nconst CONFIDENCE_THRESHOLD = 80;\n\ntry {\n  const inputData = $input.item?.json;\n  rawText = inputData?.text\n    || inputData?.content?.parts?.[0]?.text\n    || inputData?.message?.content\n    || (typeof inputData === 'string' ? inputData : '');\n\n  if (!rawText) throw new Error('No output text received from AI node.');\n\n  let sanitized = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n  const match = sanitized.match(/\\{[\\s\\S]*\\}/);\n  if (match) sanitized = match[0];\n\n  const parsed = JSON.parse(sanitized);\n\n  const subjectOptions = Array.isArray(parsed.email_subject_options) ? parsed.email_subject_options.filter(Boolean) : [];\n  let selectedSubject = (parsed.selected_subject || '').toString().trim();\n  if (subjectOptions.length && !subjectOptions.includes(selectedSubject)) {\n    selectedSubject = subjectOptions[0];\n  }\n\n  const score = Number.isFinite(Number(parsed.data_confidence_score)) ? Math.max(0, Math.min(100, Number(parsed.data_confidence_score))) : 0;\n  const emailBody = (parsed.email_body || '').toString().trim();\n\n  const requiresHuman = Boolean(parsed.requires_human_flag) || !emailBody || !selectedSubject || score < CONFIDENCE_THRESHOLD;\n\n  return {\n    json: {\n      parse_status: 'success',\n      status: parsed.status || 'success',\n      data_confidence_score: score,\n      strategy_used: score >= CONFIDENCE_THRESHOLD ? 'Hyper-Personalized' : 'Value-First B2B Outreach Strategy',\n      company_summary: parsed.company_summary || '',\n      target_audience: parsed.target_audience || '',\n      identified_pain_point: parsed.identified_pain_point || '',\n      evidence_used: Array.isArray(parsed.evidence_used) ? parsed.evidence_used : [],\n      email_subject_options: subjectOptions,\n      selected_subject: selectedSubject,\n      email_body: emailBody,\n      requires_human_flag: requiresHuman,\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      parse_status: 'failed',\n      status: 'parsing_error',\n      data_confidence_score: 0,\n      strategy_used: 'Value-First B2B Outreach Strategy',\n      company_summary: '',\n      target_audience: '',\n      identified_pain_point: '',\n      evidence_used: [],\n      email_subject_options: [],\n      selected_subject: '',\n      email_body: '',\n      requires_human_flag: true,\n      error_message: error.message,\n      raw_output: rawText,\n    }\n  };\n}"
+      },
+      "id": "9fdd0992-bac5-4319-ac07-c735679d1d5b",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        2368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "db717fad-4ed6-477e-a0a3-1d758ca10457",
+              "leftValue": "={{ $json.data_confidence_score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "76da0ea4-f1af-4cbd-aa86-0d574aa46222",
+              "leftValue": "={{ $json.requires_human_flag }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "9be65f8e-79bb-4174-951f-392073c24db8",
+              "leftValue": "={{ $json.parse_status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c5754d5d-b2a8-4710-a989-0fe34697d439",
+      "name": "Confidence Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        2368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Data Consolidation').item.json.Name }}",
+            "Email": "={{ $('Data Consolidation').item.json.Email }}",
+            "Company": "={{ $('Data Consolidation').item.json.Company }}",
+            "Company_URL": "={{ $('Data Consolidation').item.json.Company_URL }}",
+            "LinkedIn_URL": "={{ $('Data Consolidation').item.json.LinkedIn_URL }}",
+            "Email Validation Status": "={{ $('Data Consolidation').item.json.email_validation.status }}",
+            "Validation Source": "={{ $('Data Consolidation').item.json.email_validation.source }}",
+            "Research Status": "={{ $('Data Consolidation').item.json.research_status }}",
+            "Status": "Pending Review",
+            "Strategy": "={{ $json.strategy_used }}",
+            "Subject": "={{ $json.selected_subject }}",
+            "Email Body": "={{ $json.email_body }}",
+            "Confidence Score": "={{ $json.data_confidence_score }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d87a05d0-99c2-4603-813f-817fc5076ce5",
+      "name": "Save Lead - Hyper-Personalized",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        944,
+        2320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Data Consolidation').item.json.Name }}",
+            "Email": "={{ $('Data Consolidation').item.json.Email }}",
+            "Company": "={{ $('Data Consolidation').item.json.Company }}",
+            "Company_URL": "={{ $('Data Consolidation').item.json.Company_URL }}",
+            "LinkedIn_URL": "={{ $('Data Consolidation').item.json.LinkedIn_URL }}",
+            "Email Validation Status": "={{ $('Data Consolidation').item.json.email_validation.status }}",
+            "Validation Source": "={{ $('Data Consolidation').item.json.email_validation.source }}",
+            "Research Status": "={{ $('Data Consolidation').item.json.research_status }}",
+            "Status": "Needs Review",
+            "Strategy": "={{ $json.strategy_used }}",
+            "Subject": "={{ $json.selected_subject }}",
+            "Email Body": "={{ $json.email_body }}",
+            "Confidence Score": "={{ $json.data_confidence_score }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "bc86b630-1798-46e0-bf71-f3e3173de2ea",
+      "name": "Save Lead - Needs Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        944,
+        2496
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate a short-lived, single-use approval token. Tokens expire after\n// 24 hours and old/expired tokens are cleaned up on every run so the\n// static data store doesn't grow forever.\n\nfunction simpleHash(str) {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    hash = (hash << 5) - hash + str.charCodeAt(i);\n    hash |= 0;\n  }\n  return Math.abs(hash).toString(36);\n}\n\nconst TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours - adjust if needed\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.approvalTokens) staticData.approvalTokens = {};\n\n// Clean up expired tokens\nconst now = Date.now();\nfor (const [tok, rec] of Object.entries(staticData.approvalTokens)) {\n  if (rec && rec.expiresAt && rec.expiresAt < now) {\n    delete staticData.approvalTokens[tok];\n  }\n}\n\nconst results = [];\nfor (const item of $input.all()) {\n  const email = (item.json.Email || '').toString().trim().toLowerCase();\n  const token = simpleHash(email + now + Math.random()).slice(0, 12);\n\n  staticData.approvalTokens[token] = {\n    email,\n    createdAt: now,\n    expiresAt: now + TOKEN_TTL_MS,\n    used: false,\n    action: null,\n    claimed: false,\n    claimedAt: null,\n  };\n\n  results.push({ json: { ...item.json, approvalToken: token } });\n}\n\nreturn results;"
+      },
+      "id": "e8df6a97-1bac-42e7-9209-c788000cc3c2",
+      "name": "Generate Approval Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        2384
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ (() => {\n  const j = $json;\n  const dc = $('Data Consolidation').item.json;\n  const warnings = [];\n  if (dc.email_validation.manual_review) warnings.push('Email validation is unresolved (' + dc.email_validation.status + ') - verify manually.');\n  if (dc.research_status !== 'full_research') warnings.push('Research status: ' + dc.research_status + ' - some sources were unavailable.');\n  if (j.requires_human_flag) warnings.push('AI flagged this lead for human review.');\n  if (j.parse_status !== 'success') warnings.push('AI output could not be parsed automatically.');\n\n  return 'ACTION REQUIRED: Cold Outreach Approval\\n\\n' +\n    'Prospect: ' + (j.Name || dc.Name || 'Unknown') + '\\n' +\n    'Company: ' + (j.Company || dc.Company || 'Unknown') + '\\n' +\n    'Email: ' + (j.Email || dc.Email) + '\\n' +\n    'Confidence: ' + j.data_confidence_score + '/100 (' + j.strategy_used + ')\\n' +\n    'Validation: ' + dc.email_validation.status + '\\n' +\n    'Research status: ' + dc.research_status + '\\n\\n' +\n    'Subject: ' + (j.selected_subject || '(none generated)') + '\\n\\n' +\n    'Email:\\n' + (j.email_body || '(none generated)') + '\\n\\n' +\n    (warnings.length ? ('Warnings:\\n- ' + warnings.join('\\n- ')) : 'Warnings: none');\n})() }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Approve & Send",
+                    "additionalFields": {
+                      "callback_data": "=approve:{{ $json.approvalToken || '' }}"
+                    }
+                  },
+                  {
+                    "text": "❌ Reject",
+                    "additionalFields": {
+                      "callback_data": "=reject:{{ $json.approvalToken || '' }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "e3b40488-dce3-49ef-98c7-8b267ee3de87",
+      "name": "Telegram Approval Request",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1328,
+        2112
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "4168be50-ca2b-4732-b52a-c7a7d5965113",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        1456,
+        1568
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve a Telegram callback into an action + email, honoring\n// expiration and duplicate-click protection. A token can only ever be\n// used once. To also protect against duplicate/concurrent deliveries of\n// the SAME callback (e.g. a Telegram redelivery, or two near-simultaneous\n// taps), the token is atomically \"claimed\" right here - before any\n// Google Sheets lookup or send attempt happens. A claim is short-lived:\n// if the run that claimed it never finishes (crash, blocked, etc.), the\n// claim goes stale after CLAIM_TTL_MS and a fresh click can claim it\n// again. A token that reaches `used: true` is permanently consumed\n// regardless of claim state - that only happens after the requested\n// action actually completes (see Mark Token Used).\n\nconst CLAIM_TTL_MS = 2 * 60 * 1000; // 2 minutes\n\nconst staticData = $getWorkflowStaticData('global');\nconst tokens = staticData.approvalTokens || {};\n\nconst results = [];\nfor (const item of $input.all()) {\n  let raw = '';\n  if (item.json.callback_query && item.json.callback_query.data) {\n    raw = item.json.callback_query.data;\n  }\n\n  const parts = raw.split(':');\n  const action = (parts[0] || '').trim().toLowerCase();\n  const token = (parts[1] || '').trim();\n\n  const record = tokens[token];\n  const now = Date.now();\n\n  const tokenExists = Boolean(record);\n  const tokenExpired = tokenExists ? (record.expiresAt < now) : false;\n  const alreadyUsed = tokenExists ? Boolean(record.used) : false;\n  const claimStale = tokenExists && record.claimed && record.claimedAt\n    ? (now - record.claimedAt > CLAIM_TTL_MS)\n    : true;\n  const alreadyClaimed = tokenExists ? Boolean(record.claimed) && !claimStale : false;\n  const resolvedEmail = tokenExists ? record.email : '';\n\n  const tokenValid = tokenExists && !tokenExpired && !alreadyUsed && !alreadyClaimed;\n\n  if (tokenValid) {\n    // Claim it now, in this same pass, so a duplicate delivery of this\n    // callback that arrives moments later sees alreadyClaimed = true.\n    record.claimed = true;\n    record.claimedAt = now;\n  }\n\n  results.push({\n    json: {\n      ...item.json,\n      approvalAction: action,\n      approvalToken: token,\n      leadEmail: resolvedEmail,\n      tokenExists,\n      tokenExpired,\n      tokenAlreadyUsed: alreadyUsed,\n      tokenAlreadyClaimed: alreadyClaimed,\n      tokenValid,\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "157c2d5e-034b-4fae-94a5-45af8f1e799e",
+      "name": "Resolve Approval Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "91dd75da-233f-4ffd-a69d-a740f4d68e73",
+              "leftValue": "={{ $json.tokenValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "98773cdc-c23d-454a-9656-432672b0ba26",
+      "name": "Token Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2016,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ (() => {\n  const j = $json;\n  let reason = 'Unknown token issue.';\n  if (!j.tokenExists) reason = 'Token not found (it may be from a previous workflow run or is invalid).';\n  else if (j.tokenExpired) reason = 'Token has expired (approval window was 24 hours).';\n  else if (j.tokenAlreadyUsed) reason = 'This approval has already been actioned - duplicate click ignored.';\n  return 'Approval click was NOT processed.\\n\\nReason: ' + reason + '\\n\\nNo email was sent.';\n})() }}",
+        "additionalFields": {}
+      },
+      "id": "52efadd6-321a-4970-866f-a7fdf7792337",
+      "name": "Notify Invalid/Expired Token",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2144,
+        1376
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $json.leadEmail }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cacc8d08-2714-44c1-aa37-c1c815137992",
+      "name": "Find Lead for Approval",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2288,
+        1552
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize a filtered Google Sheets read into exactly one found/not-found\n// result PER UPSTREAM ITEM, using n8n's pairedItem tracking. This stays\n// correct even when this execution is processing more than one lead/event\n// at once (e.g. several unread emails in one Gmail poll): a match for one\n// item can never be mistaken for a match belonging to another item.\n//\n// IMPORTANT (reliability fix): the upstream Google Sheets \"read\" node runs\n// with onError: continueRegularOutput, so a Sheets API failure (auth error,\n// rate limit, timeout, etc.) does NOT stop the workflow - instead it comes\n// through this node's input as a normal item shaped like { json: { error: ... } }.\n// That error item must NEVER be mistaken for a matched lead row - doing so\n// would let missing/undefined fields (Email, Status, etc.) silently flow\n// forward as if they were real data. We explicitly detect and separate out\n// error items below and always resolve them to leadFound: false, with the\n// underlying error message preserved for the alert / manual-review path.\n//\n// Matched rows carry their pairedItem metadata forward so that downstream\n// nodes can still resolve $('Resolve Approval Token').item correctly. Not-found\n// results have no corresponding sheet row to inherit pairedItem from, but\n// nothing downstream needs ancestor lookups on that path.\n\nconst upstreamItems = $('Resolve Approval Token').all();\nconst matchedRows = $input.all();\n\nconst matchByIndex = {};\nconst lookupErrorByIndex = {};\nfor (const row of matchedRows) {\n  const idx = (row.pairedItem && typeof row.pairedItem.item === 'number')\n    ? row.pairedItem.item\n    : (row.pairedItem && Array.isArray(row.pairedItem) && typeof row.pairedItem[0]?.item === 'number')\n      ? row.pairedItem[0].item\n      : 0;\n\n  const isErrorItem = Boolean(row.json) && Object.prototype.hasOwnProperty.call(row.json, 'error');\n  if (isErrorItem) {\n    // A Sheets API failure - never treat this as a found/matched lead row.\n    if (!(idx in lookupErrorByIndex)) {\n      const errVal = row.json.error;\n      lookupErrorByIndex[idx] = (errVal && errVal.message) ? errVal.message : (typeof errVal === 'string' ? errVal : 'Google Sheets lookup failed');\n    }\n    continue;\n  }\n\n  // If a later row also maps to the same index (shouldn't happen with\n  // returnAllMatches: false, but be defensive), keep the first match.\n  if (!(idx in matchByIndex)) matchByIndex[idx] = row;\n}\n\nconst results = [];\nfor (let i = 0; i < upstreamItems.length; i++) {\n  const upstream = upstreamItems[i].json;\n  const searchedEmail = upstream.leadEmail || '';\n  const matchedRow = matchByIndex[i];\n  if (matchedRow) {\n    const out = { json: { ...matchedRow.json, leadFound: true } };\n    if (matchedRow.pairedItem !== undefined) out.pairedItem = matchedRow.pairedItem;\n    results.push(out);\n  } else {\n    const lookupError = lookupErrorByIndex[i];\n    results.push({\n      json: {\n        leadFound: false,\n        lookupFailed: Boolean(lookupError),\n        reason: lookupError\n          ? ('Google Sheets lookup failed: ' + lookupError)\n          : ('No sheet row found for email: ' + searchedEmail),\n        approvalToken: upstream.approvalToken || '',\n        searchedEmail,\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "6bed61b0-dac8-4002-b822-a8a2be57f832",
+      "name": "Normalize Approval Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3c139108-bc80-4a85-802b-2dd85d306d2b",
+              "leftValue": "={{ $json.leadFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "732f66a7-4f93-421e-94ce-4b2ab5eaa12e",
+      "name": "Lead Found? (Approval)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1424,
+        1824
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ \"\\u26a0\\ufe0f APPROVAL FAILED: Could not locate the lead row.\\n\\nReason: \" + ($json.reason || \"Unknown lookup error\") + \"\\n\\nApproval token: \" + ($json.approvalToken || \"N/A\") + \"\\n\\nThe click was NOT sent - please check the sheet manually.\" }}",
+        "additionalFields": {}
+      },
+      "id": "698ea3bc-6121-4663-ae63-4d1b1fbbf9e6",
+      "name": "Send Lookup Failed Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1168,
+        1392
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4d8fd135-fe8b-4ba1-b3c0-512db70a2941",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Sent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "aeeabace-0864-44d2-9b38-7707c4ab9e10",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Replied",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c9e059bd-27e0-47f9-8b46-b6d54658381d",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Do Not Contact",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "fd7bb176-0910-43f6-b3a9-b578cf88d5e2",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Rejected",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "93da51de-989f-4d1f-9346-385a44333fae",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Follow-up Sent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "909cca1b-38d8-4a9c-9cdb-62d726d68b69",
+      "name": "Lead Already Actioned?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ 'This lead is already in status \"' + $json.Status + '\" - the approval click was ignored to prevent a duplicate send.' }}",
+        "additionalFields": {}
+      },
+      "id": "0f1a66b9-d284-4c04-be6d-2c371da99df4",
+      "name": "Notify Already Actioned",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1648,
+        1408
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Idempotency: flip the token to used=true so a second click on the same\n// Telegram button can never send a second email.\n\nconst staticData = $getWorkflowStaticData('global');\nconst tokens = staticData.approvalTokens || {};\nconst token = $('Resolve Approval Token').item.json.approvalToken;\nconst action = $('Resolve Approval Token').item.json.approvalAction;\n\nif (tokens[token]) {\n  tokens[token].used = true;\n  tokens[token].action = action;\n}\n\nreturn { json: { ...$input.item.json, approvalAction: action } };"
+      },
+      "id": "d033e6e5-8e19-4fb7-83b5-2b061cd6b22b",
+      "name": "Mark Token Used",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        1376
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "edbb5d48-03ab-4392-b6a2-d23540998650",
+              "leftValue": "={{ $json.approvalAction }}",
+              "rightValue": "approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "18483ca3-fc5a-410d-b9fc-1918370e5da2",
+      "name": "Approve or Reject?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1936,
+        1824
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "Status": "Rejected"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "95f3fcea-d3e2-4ebd-8d73-1551f053079f",
+      "name": "Update Status - Rejected",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2704,
+        1376
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "50752f9c-2bfc-481e-a0f0-399a725cbef4",
+              "leftValue": "={{ $json.Email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "21cd968d-fbc5-4331-a41f-74040ddcd71b",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "8bab7511-7870-4961-a0c9-bbff0da20ee7",
+              "leftValue": "={{ $json['Email Body'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "06ae6719-a56a-4ff0-ae01-7c63535ec30d",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Sent",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "74dc021f-c10d-48f1-9fb1-d57a9a557440",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Replied",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "9b1f2a3c-4d5e-4f60-8a71-2b3c4d5e6f70",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Do Not Contact",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "1a2b3c4d-5e6f-4708-9091-a2b3c4d5e6f7",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Opted Out",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "2b3c4d5e-6f70-4819-a0a1-b2c3d4e5f6a7",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Rejected",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "3c4d5e6f-7081-492a-b1b2-c3d4e5f6a7b8",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Follow-up Sent",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d57882fb-e80d-467d-bab2-f321e4186e5c",
+      "name": "Final Send Safety Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2208,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "Status": "Needs Review",
+            "Last Error": "Final send safety gate blocked this send (missing subject/body/email, or lead already actioned)."
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c3686571-cf8c-4372-b651-81247f847ae0",
+      "name": "Log Safety Gate Block",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3008,
+        1392
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "={{ $json.Subject }}",
+        "message": "={{ $json['Email Body'] }}",
+        "options": {}
+      },
+      "id": "596dcd21-5e9b-498d-b03e-53f076a19af9",
+      "name": "Send Initial Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2512,
+        1792
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": null,
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f9b90301-c27d-4d6a-b1d0-789ae7927b7f",
+              "leftValue": "={{ !$json.error && Boolean($json.id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f8fa1af2-8638-4507-aacc-8bb8fb66726c",
+      "name": "Initial Send OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1680,
+        2128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Final Send Safety Gate').item.json.Email }}",
+            "Status": "Sent",
+            "Sent At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "db0e781e-81f7-4b59-964b-0b5de6b8b15f",
+      "name": "Update Status - Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2256,
+        2112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Final Send Safety Gate').item.json.Email }}",
+            "Status": "Send Failed",
+            "Last Error": "={{ $json.error?.message || 'Gmail send failed' }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "6ddc73d3-7ccd-4bd4-81c9-ed825acef4d8",
+      "name": "Update Status - Send Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3312,
+        1408
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "days"
+      },
+      "id": "3cca1cd1-3fa0-4e32-a526-beeceddfb6d8",
+      "name": "Wait for Follow-up",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2480,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $('Final Send Safety Gate').item.json.Email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0659ea8c-875d-4f12-a1e1-80587933c316",
+      "name": "Find Lead Before Follow-up",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2720,
+        2112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize a filtered Google Sheets read into exactly one found/not-found\n// result PER UPSTREAM ITEM, using n8n's pairedItem tracking. This stays\n// correct even when this execution is processing more than one lead/event\n// at once (e.g. several unread emails in one Gmail poll): a match for one\n// item can never be mistaken for a match belonging to another item.\n//\n// IMPORTANT (reliability fix): the upstream Google Sheets \"read\" node runs\n// with onError: continueRegularOutput, so a Sheets API failure (auth error,\n// rate limit, timeout, etc.) does NOT stop the workflow - instead it comes\n// through this node's input as a normal item shaped like { json: { error: ... } }.\n// That error item must NEVER be mistaken for a matched lead row - doing so\n// would let missing/undefined fields (Email, Status, etc.) silently flow\n// forward as if they were real data. We explicitly detect and separate out\n// error items below and always resolve them to leadFound: false, with the\n// underlying error message preserved for the alert / manual-review path.\n//\n// Matched rows carry their pairedItem metadata forward so that downstream\n// nodes can still resolve $('Final Send Safety Gate').item correctly. Not-found\n// results have no corresponding sheet row to inherit pairedItem from, but\n// nothing downstream needs ancestor lookups on that path.\n\nconst upstreamItems = $('Final Send Safety Gate').all();\nconst matchedRows = $input.all();\n\nconst matchByIndex = {};\nconst lookupErrorByIndex = {};\nfor (const row of matchedRows) {\n  const idx = (row.pairedItem && typeof row.pairedItem.item === 'number')\n    ? row.pairedItem.item\n    : (row.pairedItem && Array.isArray(row.pairedItem) && typeof row.pairedItem[0]?.item === 'number')\n      ? row.pairedItem[0].item\n      : 0;\n\n  const isErrorItem = Boolean(row.json) && Object.prototype.hasOwnProperty.call(row.json, 'error');\n  if (isErrorItem) {\n    // A Sheets API failure - never treat this as a found/matched lead row.\n    if (!(idx in lookupErrorByIndex)) {\n      const errVal = row.json.error;\n      lookupErrorByIndex[idx] = (errVal && errVal.message) ? errVal.message : (typeof errVal === 'string' ? errVal : 'Google Sheets lookup failed');\n    }\n    continue;\n  }\n\n  // If a later row also maps to the same index (shouldn't happen with\n  // returnAllMatches: false, but be defensive), keep the first match.\n  if (!(idx in matchByIndex)) matchByIndex[idx] = row;\n}\n\nconst results = [];\nfor (let i = 0; i < upstreamItems.length; i++) {\n  const upstream = upstreamItems[i].json;\n  const searchedEmail = upstream.Email || '';\n  const matchedRow = matchByIndex[i];\n  if (matchedRow) {\n    const out = { json: { ...matchedRow.json, leadFound: true } };\n    if (matchedRow.pairedItem !== undefined) out.pairedItem = matchedRow.pairedItem;\n    results.push(out);\n  } else {\n    const lookupError = lookupErrorByIndex[i];\n    results.push({\n      json: {\n        leadFound: false,\n        lookupFailed: Boolean(lookupError),\n        reason: lookupError\n          ? ('Google Sheets lookup failed: ' + lookupError)\n          : ('No sheet row found for email: ' + searchedEmail),\n        approvalToken: upstream.approvalToken || '',\n        searchedEmail,\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "2f0c1089-a9c4-43b1-948c-c02f2ac8f431",
+      "name": "Normalize Follow-up Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b85c5498-9475-4199-b541-1b335f7f5113",
+              "leftValue": "={{ $json.leadFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "db0acb17-7874-4f60-b9df-d15b2bb7d7fa",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Replied",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "3c1790c9-9f99-4d15-8739-9daa5baaedb8",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Do Not Contact",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "f6cbfd1a-05d9-4156-851d-f377cdcb4bae",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Opted Out",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "4581e9a3-adfd-4cbf-a83f-fdc1acb9bc61",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Rejected",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "e28d54e0-f91f-4d9b-a9c2-9d11e034edb6",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Follow-up Sent",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df15f49f-771f-4894-96ba-8b27aa0b5309",
+      "name": "Follow-up Eligible?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2976,
+        1792
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "=Re: Quick thought regarding {{ $json.Company || 'your company' }}",
+        "message": "=Hi {{ $json.Name || \"there\" }},\n\nI know you’re likely busy, so I’ll keep this brief.\n\nI sent over a quick note a few days ago regarding how we could help {{ $json.Company || \"your team\" }} streamline operations and drive better results.\n\nJust wanted to check if you had a chance to review it?\n\nIf it makes sense to connect, would you be open to a quick 5-minute chat this week? If not, no worries at all—just let me know!\n\nBest regards",
+        "options": {}
+      },
+      "id": "0d84c5f4-9613-41e5-988c-d4489459e7fe",
+      "name": "Send Follow-up Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3232,
+        1776
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": null,
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0ccda13a-9038-4b13-9e00-32def11a8bb9",
+              "leftValue": "={{ !$json.error && Boolean($json.id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7ac8e60f-36af-4803-bb0f-635e9541e647",
+      "name": "Follow-up Send OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3440,
+        1776
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Normalize Follow-up Lookup').item.json.Email }}",
+            "Status": "Follow-up Sent",
+            "Follow-up Sent At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "da8d5841-4763-4a94-899f-01abb4b77b32",
+      "name": "Update Status - Follow-up Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3584,
+        1568
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Normalize Follow-up Lookup').item.json.Email }}",
+            "Status": "Send Failed",
+            "Last Error": "={{ $json.error?.message || 'Gmail follow-up send failed' }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "13c7dd32-3c5d-49ef-a7f1-a73a281fa846",
+      "name": "Update Status - Follow-up Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3600,
+        1984
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "is:unread"
+        }
+      },
+      "id": "e76d471c-0e45-42ac-b52e-58e362f0c414",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -480,
+        2688
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": null,
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Safely extract the prospect's sender email. NEVER falls back to the\n// workflow owner's own address or any other hardcoded personal email -\n// if we can't determine the sender, we do not guess.\n\nconst j = $input.item.json;\n\nlet senderEmail = '';\nif (j.from && j.from.value && j.from.value[0] && j.from.value[0].address) {\n  senderEmail = j.from.value[0].address;\n} else if (j.from && j.from.text) {\n  const m = j.from.text.match(/<([^>]+)>/);\n  senderEmail = m ? m[1] : (j.from.text.includes('@') ? j.from.text.trim() : '');\n} else if (typeof j.headers?.from === 'string' && j.headers.from.includes('@')) {\n  const m = j.headers.from.match(/<([^>]+)>/);\n  senderEmail = m ? m[1] : j.headers.from.trim();\n}\n\nsenderEmail = (senderEmail || '').toString().trim().toLowerCase();\n\nreturn {\n  json: {\n    ...j,\n    senderEmail,\n    senderIdentified: Boolean(senderEmail),\n  }\n};"
+      },
+      "id": "1f39a05d-fd6b-4e89-a89c-2c31921930eb",
+      "name": "Extract Sender Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        2688
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ff5b8bb3-01cf-4e1d-b3b5-e8dbbf2be5e0",
+              "leftValue": "={{ $json.senderIdentified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e1d76289-3624-44f4-8a79-02da2adf24d3",
+      "name": "Sender Identified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        2688
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ 'An inbound email arrived but the sender address could not be determined. Subject: ' + ($json.subject || '(no subject)') }}",
+        "additionalFields": {}
+      },
+      "id": "6aa02d3e-5f44-4c1b-aa2a-2d2b5af2acb4",
+      "name": "Log Unmatched Inbound Email",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        2960
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "31ab801f-ae9b-4485-aa6e-6f652d5e5615",
+              "leftValue": "={{ ($json.snippet || '') + ' ' + ($json.text || '') }}",
+              "rightValue": "(?:unsubscribe|stop emailing me|remove me(?: from)?(?: this)?(?: list)?|opt[\\s-]?out|do not (?:contact|email) me|take me off (?:this|your) list)",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3241ba38-8579-4b55-ba03-49168c4baa88",
+      "name": "Detect Opt-Out",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        288,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $('Extract Sender Email').item.json.senderEmail }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30b818d7-2636-4643-b74f-8a659bc86b97",
+      "name": "Find Lead for Opt-Out",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        656,
+        2656
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize a filtered Google Sheets read into exactly one found/not-found\n// result PER UPSTREAM ITEM, using n8n's pairedItem tracking. This stays\n// correct even when this execution is processing more than one lead/event\n// at once (e.g. several unread emails in one Gmail poll): a match for one\n// item can never be mistaken for a match belonging to another item.\n//\n// IMPORTANT (reliability fix): the upstream Google Sheets \"read\" node runs\n// with onError: continueRegularOutput, so a Sheets API failure (auth error,\n// rate limit, timeout, etc.) does NOT stop the workflow - instead it comes\n// through this node's input as a normal item shaped like { json: { error: ... } }.\n// That error item must NEVER be mistaken for a matched lead row - doing so\n// would let missing/undefined fields (Email, Status, etc.) silently flow\n// forward as if they were real data. We explicitly detect and separate out\n// error items below and always resolve them to leadFound: false, with the\n// underlying error message preserved for the alert / manual-review path.\n//\n// Matched rows carry their pairedItem metadata forward so that downstream\n// nodes can still resolve $('Extract Sender Email').item correctly. Not-found\n// results have no corresponding sheet row to inherit pairedItem from, but\n// nothing downstream needs ancestor lookups on that path.\n\nconst upstreamItems = $('Extract Sender Email').all();\nconst matchedRows = $input.all();\n\nconst matchByIndex = {};\nconst lookupErrorByIndex = {};\nfor (const row of matchedRows) {\n  const idx = (row.pairedItem && typeof row.pairedItem.item === 'number')\n    ? row.pairedItem.item\n    : (row.pairedItem && Array.isArray(row.pairedItem) && typeof row.pairedItem[0]?.item === 'number')\n      ? row.pairedItem[0].item\n      : 0;\n\n  const isErrorItem = Boolean(row.json) && Object.prototype.hasOwnProperty.call(row.json, 'error');\n  if (isErrorItem) {\n    // A Sheets API failure - never treat this as a found/matched lead row.\n    if (!(idx in lookupErrorByIndex)) {\n      const errVal = row.json.error;\n      lookupErrorByIndex[idx] = (errVal && errVal.message) ? errVal.message : (typeof errVal === 'string' ? errVal : 'Google Sheets lookup failed');\n    }\n    continue;\n  }\n\n  // If a later row also maps to the same index (shouldn't happen with\n  // returnAllMatches: false, but be defensive), keep the first match.\n  if (!(idx in matchByIndex)) matchByIndex[idx] = row;\n}\n\nconst results = [];\nfor (let i = 0; i < upstreamItems.length; i++) {\n  const upstream = upstreamItems[i].json;\n  const searchedEmail = upstream.senderEmail || '';\n  const matchedRow = matchByIndex[i];\n  if (matchedRow) {\n    const out = { json: { ...matchedRow.json, leadFound: true } };\n    if (matchedRow.pairedItem !== undefined) out.pairedItem = matchedRow.pairedItem;\n    results.push(out);\n  } else {\n    const lookupError = lookupErrorByIndex[i];\n    results.push({\n      json: {\n        leadFound: false,\n        lookupFailed: Boolean(lookupError),\n        reason: lookupError\n          ? ('Google Sheets lookup failed: ' + lookupError)\n          : ('No sheet row found for email: ' + searchedEmail),\n        approvalToken: upstream.approvalToken || '',\n        searchedEmail,\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "9637558e-a8af-4413-951f-d0d75e62c3f8",
+      "name": "Normalize Opt-Out Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        2656
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "08b12fb5-8657-4ed6-926c-25d9a7780e61",
+              "leftValue": "={{ $json.leadFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "82d39e4c-f958-4da4-adba-06b11db6c897",
+      "name": "Opt-Out Lead Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1264,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "Status": "Do Not Contact"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "de3c8b32-a00f-4697-a509-6dae401bbe28",
+      "name": "Update Status - Do Not Contact",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1472,
+        2544
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ 'Opt-out language detected from ' + $('Extract Sender Email').item.json.senderEmail + ' but no matching lead row was found. Please review manually.' }}",
+        "additionalFields": {}
+      },
+      "id": "196dcf11-9571-471a-a156-2d5c83471796",
+      "name": "Notify Unmatched Opt-Out",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        2848
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $('Extract Sender Email').item.json.senderEmail }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5b58786e-a095-41cd-aaa0-6e0710dba460",
+      "name": "Find Lead for Reply",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        416,
+        2960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize a filtered Google Sheets read into exactly one found/not-found\n// result PER UPSTREAM ITEM, using n8n's pairedItem tracking. This stays\n// correct even when this execution is processing more than one lead/event\n// at once (e.g. several unread emails in one Gmail poll): a match for one\n// item can never be mistaken for a match belonging to another item.\n//\n// IMPORTANT (reliability fix): the upstream Google Sheets \"read\" node runs\n// with onError: continueRegularOutput, so a Sheets API failure (auth error,\n// rate limit, timeout, etc.) does NOT stop the workflow - instead it comes\n// through this node's input as a normal item shaped like { json: { error: ... } }.\n// That error item must NEVER be mistaken for a matched lead row - doing so\n// would let missing/undefined fields (Email, Status, etc.) silently flow\n// forward as if they were real data. We explicitly detect and separate out\n// error items below and always resolve them to leadFound: false, with the\n// underlying error message preserved for the alert / manual-review path.\n//\n// Matched rows carry their pairedItem metadata forward so that downstream\n// nodes can still resolve $('Extract Sender Email').item correctly. Not-found\n// results have no corresponding sheet row to inherit pairedItem from, but\n// nothing downstream needs ancestor lookups on that path.\n\nconst upstreamItems = $('Extract Sender Email').all();\nconst matchedRows = $input.all();\n\nconst matchByIndex = {};\nconst lookupErrorByIndex = {};\nfor (const row of matchedRows) {\n  const idx = (row.pairedItem && typeof row.pairedItem.item === 'number')\n    ? row.pairedItem.item\n    : (row.pairedItem && Array.isArray(row.pairedItem) && typeof row.pairedItem[0]?.item === 'number')\n      ? row.pairedItem[0].item\n      : 0;\n\n  const isErrorItem = Boolean(row.json) && Object.prototype.hasOwnProperty.call(row.json, 'error');\n  if (isErrorItem) {\n    // A Sheets API failure - never treat this as a found/matched lead row.\n    if (!(idx in lookupErrorByIndex)) {\n      const errVal = row.json.error;\n      lookupErrorByIndex[idx] = (errVal && errVal.message) ? errVal.message : (typeof errVal === 'string' ? errVal : 'Google Sheets lookup failed');\n    }\n    continue;\n  }\n\n  // If a later row also maps to the same index (shouldn't happen with\n  // returnAllMatches: false, but be defensive), keep the first match.\n  if (!(idx in matchByIndex)) matchByIndex[idx] = row;\n}\n\nconst results = [];\nfor (let i = 0; i < upstreamItems.length; i++) {\n  const upstream = upstreamItems[i].json;\n  const searchedEmail = upstream.senderEmail || '';\n  const matchedRow = matchByIndex[i];\n  if (matchedRow) {\n    const out = { json: { ...matchedRow.json, leadFound: true } };\n    if (matchedRow.pairedItem !== undefined) out.pairedItem = matchedRow.pairedItem;\n    results.push(out);\n  } else {\n    const lookupError = lookupErrorByIndex[i];\n    results.push({\n      json: {\n        leadFound: false,\n        lookupFailed: Boolean(lookupError),\n        reason: lookupError\n          ? ('Google Sheets lookup failed: ' + lookupError)\n          : ('No sheet row found for email: ' + searchedEmail),\n        approvalToken: upstream.approvalToken || '',\n        searchedEmail,\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "7d6f5950-b5f0-470e-927b-083ce98494c9",
+      "name": "Normalize Reply Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        2944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "853806c3-4550-4dce-a746-d300271bfca9",
+              "leftValue": "={{ $json.leadFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b79b6c0d-2e2e-44b9-9a10-924b706afbb2",
+      "name": "Reply Lead Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        928,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Test Lead Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_GOOGLE_SHEET_ID/edit"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "Status": "Replied",
+            "Reply Detected At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company_URL",
+              "displayName": "Company_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn_URL",
+              "displayName": "LinkedIn_URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Validation Status",
+              "displayName": "Email Validation Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation Source",
+              "displayName": "Validation Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Research Status",
+              "displayName": "Research Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Strategy",
+              "displayName": "Strategy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Body",
+              "displayName": "Email Body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence Score",
+              "displayName": "Confidence Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sent At",
+              "displayName": "Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow-up Sent At",
+              "displayName": "Follow-up Sent At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reply Detected At",
+              "displayName": "Reply Detected At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Error",
+              "displayName": "Last Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3e47aaee-0890-4be9-8fa3-9997c1417b51",
+      "name": "Update Status - Replied",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        2848
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": null,
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ 'A reply arrived from ' + $('Extract Sender Email').item.json.senderEmail + ' but no matching lead row was found. Logged as an unmatched inbound email.' }}",
+        "additionalFields": {}
+      },
+      "id": "db7de2ef-cae7-4d00-a849-8c81e5bee89d",
+      "name": "Notify Unmatched Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1104,
+        3104
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": null,
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f1a2b3c4-0001-4a11-8a11-000000000001",
+              "leftValue": "={{ true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b0ae9e6a-d7bb-4d91-82a2-f2307d58609f",
+      "name": "Skip Already Processed Rows",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -208,
+        1872
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "e1c2cf4c-0915-4bee-8686-78aa7dd93917",
+      "name": "Ignore Workflow-Generated Row",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        1552
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Idempotency: flip the token to used=true so a second click on the same\n// Telegram button can never send a second email.\n\nconst staticData = $getWorkflowStaticData('global');\nconst tokens = staticData.approvalTokens || {};\nconst token = $('Resolve Approval Token').item.json.approvalToken;\nconst action = $('Resolve Approval Token').item.json.approvalAction;\n\nif (tokens[token]) {\n  tokens[token].used = true;\n  tokens[token].action = action;\n}\n\nreturn { json: { ...$input.item.json, approvalAction: action } };"
+      },
+      "id": "242a44d8-d482-4421-81cc-074d9cb40886",
+      "name": "Mark Token Used (After Send)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        2112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Skip Already Processed Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead Input": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Email Validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Missing Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Validation": {
+      "main": [
+        [
+          {
+            "node": "Normalize Validation Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Validation Result": {
+      "main": [
+        [
+          {
+            "node": "Email Acceptable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Acceptable?": {
+      "main": [
+        [
+          {
+            "node": "Homepage Research",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Invalid Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Homepage Research": {
+      "main": [
+        [
+          {
+            "node": "About Page Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "About Page Research": {
+      "main": [
+        [
+          {
+            "node": "Blog Content Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blog Content Research": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Research": {
+      "main": [
+        [
+          {
+            "node": "Technographic Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technographic Research": {
+      "main": [
+        [
+          {
+            "node": "Data Consolidation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Consolidation": {
+      "main": [
+        [
+          {
+            "node": "AI Lead Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Lead Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Confidence Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence Gate": {
+      "main": [
+        [
+          {
+            "node": "Save Lead - Hyper-Personalized",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Lead - Needs Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead - Hyper-Personalized": {
+      "main": [
+        [
+          {
+            "node": "Generate Approval Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead - Needs Review": {
+      "main": [
+        [
+          {
+            "node": "Generate Approval Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Approval Token": {
+      "main": [
+        [
+          {
+            "node": "Telegram Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Resolve Approval Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Approval Token": {
+      "main": [
+        [
+          {
+            "node": "Token Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Valid?": {
+      "main": [
+        [
+          {
+            "node": "Find Lead for Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Invalid/Expired Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead for Approval": {
+      "main": [
+        [
+          {
+            "node": "Normalize Approval Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Approval Lookup": {
+      "main": [
+        [
+          {
+            "node": "Lead Found? (Approval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Found? (Approval)": {
+      "main": [
+        [
+          {
+            "node": "Lead Already Actioned?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Lookup Failed Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Already Actioned?": {
+      "main": [
+        [
+          {
+            "node": "Notify Already Actioned",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approve or Reject?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Token Used": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve or Reject?": {
+      "main": [
+        [
+          {
+            "node": "Final Send Safety Gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Token Used",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Send Safety Gate": {
+      "main": [
+        [
+          {
+            "node": "Send Initial Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Safety Gate Block",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Initial Email": {
+      "main": [
+        [
+          {
+            "node": "Initial Send OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial Send OK?": {
+      "main": [
+        [
+          {
+            "node": "Mark Token Used (After Send)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Sent": {
+      "main": [
+        [
+          {
+            "node": "Wait for Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Find Lead Before Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead Before Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Normalize Follow-up Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Follow-up Lookup": {
+      "main": [
+        [
+          {
+            "node": "Follow-up Eligible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-up Eligible?": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up Email": {
+      "main": [
+        [
+          {
+            "node": "Follow-up Send OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-up Send OK?": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Follow-up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - Follow-up Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Sender Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Sender Email": {
+      "main": [
+        [
+          {
+            "node": "Sender Identified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender Identified?": {
+      "main": [
+        [
+          {
+            "node": "Detect Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Unmatched Inbound Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Find Lead for Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Lead for Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead for Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Normalize Opt-Out Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Opt-Out Lookup": {
+      "main": [
+        [
+          {
+            "node": "Opt-Out Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opt-Out Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Do Not Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Unmatched Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Lead for Reply": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reply Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Reply Lookup": {
+      "main": [
+        [
+          {
+            "node": "Reply Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Replied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Unmatched Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Already Processed Rows": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore Workflow-Generated Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore Workflow-Generated Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Token Used (After Send)": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
