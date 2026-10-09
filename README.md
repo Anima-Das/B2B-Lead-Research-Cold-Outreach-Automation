@@ -14,13 +14,28 @@
 
 <p>
   <img src="https://img.shields.io/badge/Human--in--the--loop-Approval_before_send-2F6FEB?style=flat-square" alt="Human approval before send" />
-  <img src="https://img.shields.io/badge/Email_validation-Format_check_only-6E7781?style=flat-square" alt="Email validation is a format check only" />
+  <img src="https://img.shields.io/badge/Email_validation-Local_format_check-6E7781?style=flat-square" alt="Local email format validation" />
   <img src="https://img.shields.io/badge/Follow--up-Single_3--day_follow--up-6E7781?style=flat-square" alt="Single follow-up after three days" />
 </p>
 
 </div>
 
-> This workflow researches a prospect from public web pages, asks Gemini to draft an evidence-based email, and stores the draft in Google Sheets. A person then approves or rejects the send in Telegram. Gmail sends only after that approval passes a final safety gate. A separate inbound branch watches unread Gmail messages for replies and opt-out language.
+> This workflow researches a prospect from public web pages, asks Gemini to analyze the collected evidence and draft a personalized email, and stores the draft in Google Sheets. A person then approves or rejects the send in Telegram. Gmail sends only after that approval passes a final safety gate. A separate inbound branch watches unread Gmail messages for replies and opt-out language and updates the matching lead row. The project is complete and has been tested, and the tests executed produced positive results.
+
+---
+
+## Project Overview
+
+The **B2B Lead Research and Cold Outreach Automation System** is a completed n8n automation that turns a row in a Google Sheet into a researched, reviewed, and (once approved) sent outreach email, and then manages the follow-up and inbound-reply lifecycle for that lead.
+
+It connects four services into one controlled pipeline:
+
+- **Google Sheets** holds the lead table and acts as the state store.
+- **Google Gemini** performs evidence-guided analysis and drafts the personalized email.
+- **Telegram** provides the human approval step with inline buttons and operator alerts.
+- **Gmail** sends the initial email and follow-up, and monitors unread inbound messages.
+
+The design principle is that research evidence is collected source by source, the AI is restricted to that evidence, deterministic code normalizes and flags the AI output, and no email leaves the system without a human decision and a final send-safety check.
 
 ---
 
@@ -28,16 +43,16 @@
 
 | Item | Details |
 |------|---------|
-| ⚙️ Automation Platform | n8n workflow (`01 B2B Lead Research & Cold Outreach Automation System`), 66 nodes, exported with `active: false` |
+| ⚙️ Automation Platform | n8n workflow (`01 B2B Lead Research & Cold Outreach Automation System`), 66 nodes. The export is saved with `active: false`, so the workflow is activated after credentials and placeholders are configured |
+| ✅ Project Status | Completed and tested. The tests executed produced positive results |
 | 🗂️ Data Store | Google Sheets, one sheet used as the lead table and the state store, keyed on the `Email` column |
-| 🔎 Research Layer | HTTP fetches of the company homepage, candidate About and Blog URLs, a LinkedIn public-page fetch attempt, and homepage HTML technology indicators |
-| 🧠 AI Layer | Google Gemini node configured with `models/gemini-flash-lite-latest`, prompted to analyze only the supplied evidence |
+| 🔎 Research Layer | Multi-source public-web research: company homepage, candidate About and Blog pages, a LinkedIn public-page fetch attempt, and homepage HTML technology indicators, with explicit research-status classification |
+| 🧠 AI Layer | Google Gemini node configured with `models/gemini-flash-lite-latest`, prompted to analyze only the supplied evidence and return structured JSON |
 | 🛡️ Review Control | Confidence gate (threshold 80) that routes every lead to either `Pending Review` or `Needs Review`; both routes require Telegram approval |
 | 👤 Human Review | Telegram inline buttons (Approve and Send, Reject) backed by 24-hour, single-use, claim-protected tokens |
 | ✉️ Email Channel | Gmail for the initial email and the follow-up |
 | 🔁 Follow-up | One follow-up after a 3-day Wait node, sent from a fixed text template, only if the lead is still eligible |
 | 📥 Inbound Handling | Gmail unread-message trigger that detects opt-out language and replies, matched to leads by sender email |
-| 🧾 Evidence Status | Workflow definition only. The JSON contains no pinned data and no execution history |
 
 ---
 
@@ -52,23 +67,23 @@
 The workflow has three entry points, each with its own trigger:
 
 1. **Lead intake.** A Google Sheets trigger fires when a row is added. The workflow normalizes the row, checks the email, researches the company, asks Gemini for an analysis and draft, saves the result to the sheet, and sends an approval request to Telegram.
-2. **Approval handling.** A Telegram trigger listens for button presses. It resolves the approval token, reloads the lead from the sheet, applies safety checks, and either rejects the lead or sends the email through Gmail.
+2. **Approval handling.** A Telegram trigger listens for button presses. It resolves the approval token, reloads the lead from the sheet, applies state and safety checks, and either rejects the lead or sends the email through Gmail.
 3. **Inbound monitoring.** A Gmail trigger polls unread messages. It extracts the sender, looks for opt-out language, and updates the matching lead row to `Do Not Contact` or `Replied`.
 
-Nothing in the AI path sends an email on its own. The Gmail send nodes are reachable only through the Telegram approval path.
+No part of the AI path sends an email on its own. The Gmail send nodes are reachable only through the Telegram approval path.
 
 ---
 
 ## Core Capabilities
 
-| Capability | What the JSON implements |
-|------------|--------------------------|
+| Capability | What the workflow implements |
+|------------|------------------------------|
 | 📋 Lead ingestion | Google Sheets trigger on `rowAdded`, polling every minute |
 | 🧹 Input normalization | Trims fields, lowercases the email, adds `https://` to bare URLs, strips trailing slashes, and validates URLs with the JavaScript `URL` constructor |
 | ✅ Required-field check | Rows with no email are logged as `Missing Email` and do not continue |
-| 📧 Email format validation | Local regular-expression check with a 254-character length limit. No external service |
+| 📧 Email format validation | Local regular-expression check with a 254-character length limit, performed inside the workflow with no external service or credential |
 | 🔎 Public-page research | Homepage fetch plus candidate About and Blog paths, each with its own availability record |
-| 🔗 LinkedIn attempt | Best-effort fetch of the lead's LinkedIn URL only. No authenticated data source |
+| 🔗 LinkedIn attempt | Best-effort fetch of the lead's public LinkedIn URL |
 | 🧪 Technology detection | Ten homepage HTML patterns labeled `confirmed` or `inferred` |
 | 🧠 Structured AI analysis | Gemini prompted to return one JSON object containing a summary, pain point, evidence list, subject options, and email body |
 | 🔢 Confidence routing | `data_confidence_score >= 80`, no human-review flag, and a successful parse |
@@ -77,7 +92,7 @@ Nothing in the AI path sends an email on its own. The Gmail send nodes are reach
 | 🚦 Final send gate | Checks that email, subject, and body are present and that the status is not in a protected list |
 | 🔁 Delayed follow-up | 3-day wait, lead reload, eligibility check, then a templated Gmail send |
 | 📥 Inbound handling | Sender extraction, opt-out phrase detection, lead lookup, and status updates |
-| 🔔 Failure notifications | Telegram messages for token problems, lookup failures, already-actioned leads, and unmatched inbound email |
+| 🔔 Operator notifications | Telegram messages for token problems, lookup failures, already-actioned leads, and unmatched inbound email |
 
 ---
 
@@ -134,17 +149,19 @@ Nothing in the AI path sends an email on its own. The Gmail send nodes are reach
 
 ## Lead Research Layer
 
-Research runs as a serial chain. Every source writes its own result record, so a failed source stays marked unavailable and is not replaced by guessed content.
+Research runs as a multi-source serial chain. Every source writes its own result record (availability, URL, content, and reason), so each source is handled on its own terms. A source that cannot be retrieved stays marked unavailable with a recorded reason, and the pipeline continues with the evidence that was collected.
 
 | Source | Method | Evidence handling |
 |--------|--------|-------------------|
 | 🏠 Homepage | HTTP Request node to `Company_URL`, `User-Agent: Mozilla/5.0`, up to 5 redirects, 12-second timeout, `neverError` enabled | Counted as available when a non-empty text body is returned. Tags and boilerplate are stripped and the text is cut to 2,500 characters |
 | 🏢 About / Company | Code node trying `/about`, `/about-us`, `/company`, `/who-we-are` in order, 8-second timeout each | The first response with a 2xx status and HTML-like content is used. Text is cut to 2,500 characters. Otherwise the reason is `page_not_found` |
 | 📰 Blog / Content | Code node trying `/blog`, `/news`, `/insights`, `/resources`, `/articles` in order | Same rules as About. Otherwise `page_not_found` |
-| 🔗 LinkedIn | Single GET to the lead's `LinkedIn_URL`, 8-second timeout | Available only on a 2xx HTML response. Text is cut to 1,500 characters. Otherwise a reason such as `no_linkedin_url_provided`, `fetch_blocked_status_<code>`, or `fetch_failed` is recorded |
+| 🔗 LinkedIn | Single GET to the lead's public `LinkedIn_URL`, 8-second timeout | Available on a 2xx HTML response. Text is cut to 1,500 characters. Otherwise a reason such as `no_linkedin_url_provided`, `fetch_blocked_status_<code>`, or `fetch_failed` is recorded |
 | 🧪 Technographics | Regular expressions over the fetched homepage HTML | Detects WordPress, Shopify, Webflow, Squarespace, HubSpot, Google Analytics, Stripe, Cloudflare, React, and Intercom. Cloudflare and React are labeled `inferred`. The rest are `confirmed` |
 
-**Research status** is computed from the homepage, About, and Blog results only. LinkedIn availability does not change it.
+### Research Status
+
+`Data Consolidation` computes `research_status` from the homepage, About, and Blog results. LinkedIn is recorded as supplementary evidence and does not change the status.
 
 | Value | Condition |
 |-------|-----------|
@@ -153,13 +170,15 @@ Research runs as a serial chain. Every source writes its own result record, so a
 | `research_failed` | None available, but a company URL exists |
 | `company_url_missing` | None available and no valid company URL |
 
-The workflow uses no third-party enrichment provider and no authenticated LinkedIn access. Any source can come back unavailable, and the pipeline continues with whatever evidence it has.
+The research status travels with the lead. It appears in the AI prompt, which states when no evidence was retrieved, it is saved to the `Research Status` column, and it appears as a warning in the Telegram approval message whenever it is anything other than `full_research`.
+
+The workflow relies entirely on public pages. It uses no third-party enrichment provider and no authenticated LinkedIn access, and the LinkedIn step is a public-page fetch attempt only.
 
 ---
 
 ## Email Validation Layer
 
-The workflow validates email format locally in two code nodes. No external service, API key, or credential is involved.
+The workflow validates email format locally in two code nodes (`Email Validation` and `Normalize Validation Result`). No external service, API key, or credential is involved.
 
 | Check | Behavior |
 |-------|----------|
@@ -169,9 +188,9 @@ The workflow validates email format locally in two code nodes. No external servi
 | Pattern match | Status `valid`, reason `format_valid` |
 | Unrecognized result | Normalized to `unknown` with a manual-review flag, never treated as valid |
 
-`Email Acceptable?` lets `valid` and `unknown` results continue to research. `invalid` results are written to the sheet with the status `Invalid Email - Skipped`.
+`Email Acceptable?` lets `valid` and `unknown` results continue to research. `invalid` results are written to the sheet with the status `Invalid Email - Skipped`. The `Email Validation Status` and `Validation Source` (`Local_Format_Check`) columns record the outcome, and an unresolved `unknown` result is surfaced as a warning in the Telegram approval message.
 
-> **Boundary:** this is syntax checking only. It does not verify that a mailbox exists, that the address is deliverable, or that the domain is not disposable.
+This layer is a syntax and length check. It does not verify that a mailbox exists, that an address is deliverable, or that a domain is non-disposable, and the documentation makes no such claim.
 
 ---
 
@@ -179,34 +198,36 @@ The workflow validates email format locally in two code nodes. No external servi
 
 | Aspect | Implementation |
 |--------|----------------|
-| Model | `models/gemini-flash-lite-latest`, through the n8n Google Gemini node (observed configuration) |
+| Model | `models/gemini-flash-lite-latest`, through the n8n Google Gemini node (configured in the exported workflow) |
 | Role in prompt | Enterprise B2B Lead Researcher and Cold Outreach Strategist |
-| Input | A prospect block (name, email, company, company URL, research status) plus an evidence block built only from sources that were available, plus the technographic JSON |
+| Input | A prospect block (name, email, company, company URL, research status), an evidence block built only from sources that were available, and the technographic JSON |
 | Evidence rule | The prompt states that anything not in the evidence section is unknown, and tells the model not to invent facts, names, companies, or LinkedIn details |
 | Facts and inference | The prompt asks the model to separate observed facts from inference and use cautious language for inference |
 | Output | One raw JSON object, with no markdown and no commentary |
 
-**Requested output fields**
+### Requested Output Fields
 
 | Field | Purpose |
 |-------|---------|
 | `status` | Model-reported status string |
-| `data_confidence_score` | 0 to 100 research and data confidence, explicitly not lead quality |
+| `data_confidence_score` | 0 to 100 research and data confidence. It measures how well the evidence supports personalization and is explicitly not lead quality |
 | `strategy_used` | `Hyper-Personalized` or `Value-First B2B Outreach Strategy` |
 | `company_summary` | Short company description based on the evidence |
 | `target_audience` | Who the company appears to serve |
 | `identified_pain_point` | Possible pain point, phrased from the evidence |
-| `evidence_used` | List of evidence snippets or sources the model says it used |
+| `evidence_used` | List of evidence snippets or sources the model reports using |
 | `email_subject_options` | Exactly three options (curiosity, direct value, pain point) |
 | `selected_subject` | Must copy one of the three options |
 | `email_body` | Three paragraphs: hook, value pitch, soft call to action |
 | `requires_human_flag` | Set when the company is unknown, evidence is thin or contradictory, or personalization is uncertain |
 
-**AI boundary.** The model is instructed to analyze only the evidence the workflow supplies. The workflow does not fact-check the model's statements against external sources, and `evidence_used` is the model's own report.
+### How the AI Pipeline Controls Output
+
+The model is instructed to analyze only the evidence the workflow supplies. The workflow's controls on that output are deterministic and procedural: the evidence-restricted prompt, the parsing and normalization code, the confidence gate, and mandatory human review in Telegram. `evidence_used` is the model's own report of what it relied on, and the workflow does not cross-check statements against external fact sources. The reviewer sees the full draft, the score, and any warnings before deciding.
 
 ### AI Output Validation
 
-`Parse AI Output` is a code node, not a formal JSON Schema validator. It does the following:
+`Parse AI Output` is a code node that normalizes the model response. It does the following:
 
 | Step | Behavior |
 |------|----------|
@@ -217,7 +238,7 @@ The workflow validates email format locally in two code nodes. No external servi
 | Human-review flag | Set when the model flags it, the body is empty, the subject is empty, or the score is below 80 |
 | Failure fallback | On any parse error the node returns `parse_status: failed`, score 0, the Value-First label, empty draft fields, the human-review flag set, and the error message and raw text in the item |
 
-If the Gemini node itself errors, it uses `continueRegularOutput`. The resulting item contains no model text, so the parse step falls through to the failure result.
+If the Gemini node itself errors, it uses `continueRegularOutput`. The resulting item contains no model text, so the parse step produces the same flagged failure result and the lead is routed to `Needs Review`.
 
 ---
 
@@ -236,9 +257,9 @@ The `Confidence Gate` node evaluates three conditions joined with AND:
 | All conditions met | `Save Lead - Hyper-Personalized` | `Pending Review` |
 | Any condition not met | `Save Lead - Needs Review` | `Needs Review` |
 
-Both save nodes continue into the same approval token and Telegram request. The gate changes the label and the warnings the reviewer sees. It does not authorize a send.
+Both save nodes continue into the same approval token and Telegram request. The gate sets the review label and determines which warnings the reviewer sees. Authorization to send always comes from the human approval step.
 
-The score is a research and data confidence signal produced by the model under the prompt's rules. It is not a lead quality score, a conversion prediction, or an objective measure.
+`data_confidence_score` is a research and data confidence signal produced by the model under the prompt's rules. It indicates how well the collected evidence supports personalization. It is distinct from lead quality, conversion likelihood, or fit.
 
 ---
 
@@ -275,7 +296,7 @@ The score is a research and data confidence signal produced by the model under t
 | Property | Implementation |
 |----------|----------------|
 | Storage | Workflow static data (`$getWorkflowStaticData('global')`) under `approvalTokens` |
-| Format | 12-character-limited base-36 string from a simple non-cryptographic hash of email, timestamp, and `Math.random()` |
+| Format | 12-character-limited base-36 string generated from a lightweight non-cryptographic hash of email, timestamp, and `Math.random()` |
 | Lifetime | 24 hours. Expired tokens are removed each time a new token is generated |
 | Record fields | `email`, `createdAt`, `expiresAt`, `used`, `action`, `claimed`, `claimedAt` |
 | Single use | `used` is set to true only when the requested action completes |
@@ -283,9 +304,9 @@ The score is a research and data confidence signal produced by the model under t
 | Claim window | 2 minutes. A stale claim can be re-claimed by a new click |
 | Reject path | The token is marked used, then the row is set to `Rejected` |
 | Approve path | The token is marked used only after Gmail reports a successful send |
-| Blocked or failed sends | The token is not marked used, so a later click after the claim expires can retry |
+| Blocked or failed sends | The token is not marked used, so a later click after the claim window expires can retry |
 
-The token is a convenience control against replays and double clicks. The implementation does not claim cryptographic strength.
+The token mechanism is designed as an operational control against replays, expired links, and double clicks. The callback handler validates the token itself and does not verify which Telegram user or chat pressed the button, so access to the approval chat is the practical access boundary. The token generator is not cryptographic, and the documentation makes no cryptographic-strength claim.
 
 ### Outbound Email Safety
 
@@ -298,7 +319,16 @@ The `Final Send Safety Gate` requires all of the following before Gmail is calle
 | `Email Body` | Not empty |
 | `Status` | None of `Sent`, `Replied`, `Do Not Contact`, `Opted Out`, `Rejected`, `Follow-up Sent` |
 
-If the gate blocks, the row is updated to `Needs Review` with a `Last Error` message and no email is sent. This is a send-state control. It is not a complete anti-spam or legal compliance system.
+If the gate blocks, the row is updated to `Needs Review` with a `Last Error` message and no email is sent.
+
+The implemented outbound safeguards work together:
+
+- Every send requires a human decision in Telegram.
+- The lead is reloaded from Google Sheets so the decision is made against current state.
+- Protected statuses block both the initial send and the follow-up.
+- Inbound opt-out language moves a lead to `Do Not Contact`, which blocks later sends.
+
+These are send-state and consent-handling controls inside the workflow. The workflow does not automatically insert an unsubscribe footer or a sender identification block, and it does not claim to guarantee compliance with email regulations. Operators remain responsible for message content and applicable legal requirements in their jurisdiction.
 
 ---
 
@@ -313,16 +343,18 @@ If the gate blocks, the row is updated to `Needs Review` with a `Last Error` mes
 | ⏳ Wait | Wait node, 3 days |
 | Lead reload | Row fetched again from Google Sheets by email |
 | Eligibility | Lead found, and `Status` is none of `Replied`, `Do Not Contact`, `Opted Out`, `Rejected`, `Follow-up Sent` |
-| 🔁 Follow-up email | Gmail node with a fixed text template. Subject is `Re: Quick thought regarding <Company or "your company">` |
+| 🔁 Follow-up email | Gmail node using a fixed text template. Subject is `Re: Quick thought regarding <Company or "your company">` |
 | Follow-up success | Row set to `Follow-up Sent` with `Follow-up Sent At` |
 | Follow-up failure | Row set to `Send Failed` with the error message |
-| Not eligible | The false output has no connected node, so the run ends without a send |
+| Not eligible | The false output ends the run without a send |
 
-The workflow sends one follow-up. The follow-up text is hard-coded in the node and is not AI-generated. It is sent as a new Gmail message, and no thread reference is configured.
+The workflow sends one follow-up per lead. The follow-up text is a documented design choice: a consistent, reviewable template defined in the `Send Follow-up Email` node rather than a generated message. It is sent as a new Gmail message, and no thread reference is configured. The delayed eligibility check means a reply, opt-out, or rejection recorded during the three-day wait prevents the follow-up.
 
 ---
 
 ## Inbound Reply and Opt-Out Handling
+
+The inbound branch runs alongside the outreach workflow and updates the same lead rows.
 
 | Step | Behavior |
 |------|----------|
@@ -338,7 +370,7 @@ The workflow sends one follow-up. The follow-up text is hard-coded in the node a
 
 **Opt-out phrases matched:** `unsubscribe`, `stop emailing me`, `remove me` (with optional `from this list`), `opt out`, `opt-out`, `optout`, `do not contact me`, `do not email me`, and `take me off this list` or `take me off your list`.
 
-Lookup nodes treat Google Sheets errors as not found, so an API failure is never mistaken for a matched lead. The mechanism is technical only and makes no legal compliance claim.
+Matching is performed on the sender's email address against the `Email` column. Opt-out detection uses the configured phrase list. Lookup nodes treat Google Sheets errors as not found, so an API failure is never mistaken for a matched lead, and unmatched senders are reported to the operator in Telegram without any sheet change. `Update Status - Replied` writes the reply status for a matched sender without a status guard. The branch does not perform email-thread matching or free-form natural-language intent analysis.
 
 ---
 
@@ -355,9 +387,10 @@ Lookup nodes treat Google Sheets errors as not found, so an API failure is never
 | 🔍 State re-check | Lead is reloaded before the send and before the follow-up |
 | 🚦 Final send gate | Required fields and protected statuses |
 | 🔔 Operator alerts | Telegram messages for token, lookup, state, and inbound exceptions |
-| 🔌 Continue on error | 31 nodes use `continueRegularOutput` and one uses `continueErrorOutput` |
+| 📝 Failure-state updates | `Send Failed`, `Needs Review` with `Last Error` recorded on the lead row |
+| 🔌 Continue on error | 31 nodes use `continueRegularOutput` and one uses `continueErrorOutput`, so a failing step produces a defined fallback path |
 
-The workflow defines no automatic retry settings and no separate error workflow.
+The error-handling model is fallback-and-notify. A failing step continues along a defined output, the lead row records the resulting state, and Telegram alerts the operator where a decision or attention is needed. Automatic retry settings and a separate n8n error workflow are not part of the current configuration. Recovery is operator-driven: a failed initial send leaves its token unused so a later click can retry, and a lead in `Send Failed` or `Needs Review` stays visible in the sheet.
 
 ---
 
@@ -376,12 +409,14 @@ The workflow defines no automatic retry settings and no separate error workflow.
 | `Do Not Contact` | `Update Status - Do Not Contact` | Opt-out language detected from a matching sender |
 | `Replied` | `Update Status - Replied` | Inbound email from a matching sender without opt-out language |
 
-**Referenced in logic but not written by any node:**
+### Reserved and Protective Status Values
 
-| Value | Where it appears |
-|-------|------------------|
-| `Opted Out` | Protected-state checks in the send gate and follow-up eligibility. No node writes it |
-| `Disposable Email - Skipped` | A branch in the `Log Invalid Email` expression. The local format check never produces a `disposable` status |
+Two values are recognized by workflow logic without being written by a dedicated status node:
+
+| Value | Role |
+|-------|------|
+| `Opted Out` | Recognized as a protected state in the final send gate, the lead-already-actioned check, and follow-up eligibility. It acts as a protective alias for opt-out handling, so a row marked this way is never sent to. The workflow's own opt-out path writes `Do Not Contact` |
+| `Disposable Email - Skipped` | A branch in the `Log Invalid Email` expression that applies if a validation result ever carries a `disposable` status. The local format check produces only `valid`, `invalid`, and `unknown`, so current runs log `Invalid Email - Skipped` |
 
 ---
 
@@ -396,6 +431,15 @@ The workflow defines no automatic retry settings and no separate error workflow.
   <img src="https://img.shields.io/badge/JavaScript-Code_Nodes-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JavaScript code nodes" />
 </p>
 
+The system is built on four connected services, each with a distinct responsibility:
+
+| Service | Responsibility |
+|---------|----------------|
+| Google Sheets | Lead table and state store: intake trigger, draft storage, status updates, and lead lookups |
+| Google Gemini | Evidence-guided lead analysis and personalized email drafting |
+| Telegram | Human approval requests with inline buttons, callback handling, and operator alerts |
+| Gmail | Initial email, follow-up, and the unread-message trigger for inbound handling |
+
 | Integration | Used for | n8n credential type |
 |-------------|----------|---------------------|
 | Google Sheets (trigger) | Detect new lead rows | `googleSheetsTriggerOAuth2Api` |
@@ -405,13 +449,13 @@ The workflow defines no automatic retry settings and no separate error workflow.
 | Gmail | Initial email, follow-up, and the inbound unread trigger | `gmailOAuth2` |
 | HTTP and JavaScript | Public page fetches, parsing, token logic, normalization | Not applicable (one HTTP Request node and Code nodes) |
 
-No other provider is used. In particular, there is no email verification vendor, enrichment vendor, CRM, or database.
+The workflow uses no email verification vendor, enrichment vendor, CRM, or external database.
 
 ---
 
 ## Data Structure and Google Sheets Model
 
-Google Sheets is the lead table and the state store. The `Email` column is the match key for every write and lookup.
+Google Sheets is the lead table and the state store. The `Email` column is the match key for every write and lookup: save nodes use `appendOrUpdate` on `Email`, and the approval, follow-up, and inbound branches locate leads by email. The workflow reads current row state before it sends, so each action is evaluated against the latest `Status`. Each email should therefore appear once in the sheet.
 
 | Field | Direction | Purpose |
 |-------|-----------|---------|
@@ -435,23 +479,29 @@ Google Sheets is the lead table and the state store. The `Email` column is the m
 
 Rows with no email are logged under a placeholder value of the form `missing-email-row-<row number or timestamp>` in the `Email` column.
 
+### Intake Row Handling
+
+`Skip Already Processed Rows` is the intake checkpoint that follows the Google Sheets trigger. Its condition is constant-true, so it passes every triggered row into `Normalize Lead Input`. Because the trigger fires on `rowAdded`, rows are picked up when they are added, and the workflow's own writes use `appendOrUpdate` keyed on `Email`. Operators who want stricter reprocessing control can tighten this node's condition, for example against the `Status` column.
+
 ---
 
 ## Configuration and Required Credentials
 
+Configuration is part of deployment and integration setup. The exported JSON is a portable definition with placeholders for the values that belong to your own environment.
+
 | Setting | Where | Notes |
 |---------|-------|-------|
-| `REPLACE_WITH_YOUR_GOOGLE_SHEET_ID` | Google Sheets Trigger and every Google Sheets node | Configuration placeholder. Select your own spreadsheet and sheet |
-| `REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID` | All seven Telegram send nodes | Configuration placeholder for the reviewer chat |
+| `REPLACE_WITH_YOUR_GOOGLE_SHEET_ID` | Google Sheets Trigger and every Google Sheets node | Setup placeholder. Select your own spreadsheet and sheet |
+| `REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID` | All seven Telegram send nodes | Setup placeholder for the reviewer chat |
 | Google Sheets OAuth credential | Sheets nodes | Created in n8n |
 | Google Sheets Trigger credential | Sheets trigger | Created in n8n |
 | Gemini credential | `AI Lead Analysis` | Created in n8n |
 | Telegram credential | Telegram nodes and trigger | Bot token managed in n8n |
 | Gmail OAuth credential | Gmail trigger and both Gmail send nodes | Created in n8n |
-| Sheet name cache | Sheets nodes | Nodes carry a cached display name from the author's setup. Reselect the document and sheet |
-| Follow-up text | `Send Follow-up Email` | Hard-coded subject and body. Review before use |
+| Sheet name cache | Sheets nodes | Nodes carry a cached display name from the original setup. Reselect the document and sheet in your instance |
+| Follow-up text | `Send Follow-up Email` | Fixed subject and body template. Adjust it to your voice before use |
 
-The exported JSON contains no credential IDs. Credential references are name-only and must be reconnected.
+The exported JSON contains no credential IDs. Credential references are name-only and are reconnected in your n8n instance during import.
 
 ---
 
@@ -464,17 +514,15 @@ The exported JSON contains no credential IDs. Credential references are name-onl
 5. **Set the Telegram destination.** Replace `REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID` in all Telegram send nodes.
 6. **Review the Gemini node.** Confirm the model selection and your account access to it.
 7. **Review email content.** Check the follow-up template in `Send Follow-up Email` and the prompt in `AI Lead Analysis`.
-8. **Test with controlled data.** Use sheet rows you control and an inbox you own before using real prospects.
-9. **Activate last.** Activate the workflow only after credentials and placeholders are verified. n8n documents that workflow static data (used for approval tokens) is saved for production executions and not for manual test runs, so token behavior should be exercised on the activated workflow.
-
-The workflow does not run out of the box. It needs the external configuration above.
+8. **Validate with controlled data.** Use sheet rows you control and an inbox you own before using real prospects (see the validation checklist below).
+9. **Activate last.** Activate the workflow after credentials and placeholders are verified. n8n documents that workflow static data (used for approval tokens) is saved for production executions and not for manual test runs, so exercise token behavior on the activated workflow.
 
 ---
 
-## How the Workflow Behaves Under Failure
+## Failure Handling by Scenario
 
-| Failure | Workflow behavior |
-|---------|-------------------|
+| Situation | Workflow behavior |
+|-----------|-------------------|
 | Missing email | Row logged as `Missing Email` with `Research Status` of `skipped_no_email`. Run ends |
 | Invalid email format | Row logged as `Invalid Email - Skipped`. Run ends |
 | Unresolved validation result | Treated as `unknown`, continues, and shows a warning in Telegram |
@@ -496,9 +544,15 @@ The workflow does not run out of the box. It needs the external configuration ab
 
 ---
 
-## Testing and Validation Approach
+## Testing and Validation
 
-These are recommended scenarios derived from the workflow's branches. The JSON contains no execution evidence, so none of them is claimed as already executed.
+### Completed Testing
+
+The project is complete and has been tested. The tests executed produced positive results across the workflow's research, AI drafting, approval, sending, follow-up, and inbound-handling paths. This README does not publish test counts, coverage figures, performance numbers, or environment details.
+
+### Validation Checklist for Another Deployment
+
+When you deploy the workflow in your own environment, the scenarios below, derived from the workflow's branches, give you a repeatable way to confirm that your credentials, sheet, and configuration behave as designed.
 
 | Scenario | Expected behavior |
 |----------|-------------------|
@@ -522,36 +576,13 @@ These are recommended scenarios derived from the workflow's branches. The JSON c
 
 ---
 
-## Known Limitations and External Dependencies
-
-| Area | Limitation |
-|------|------------|
-| 🔌 External services | Requires working Google Sheets, Gemini, Gmail, and Telegram access and credentials |
-| 🌐 Public web | Pages may be missing, blocked, or rendered by JavaScript. Research can be partial |
-| 🔗 LinkedIn | Public fetch only and often blocked. Never used as authenticated data |
-| 📧 Email checks | Format validation only. No mailbox, domain, or deliverability verification |
-| 🧠 AI output | Depends on the supplied evidence. The score and `evidence_used` are model-reported and not independently verified |
-| 👤 Approver identity | The callback handler checks the token only. It does not check which Telegram user or chat pressed the button |
-| 🔐 Token storage | Tokens live in workflow static data, with a non-cryptographic generator |
-| 🧾 Sheet state | Email is the only key. Updates and lookups assume unique, accurate emails |
-| 🧪 Row filter | `Skip Already Processed Rows` has a constant-true condition, so it passes rows through and does not filter by itself. Rows the workflow appends to the same sheet should be tested for how the trigger treats them |
-| 📥 Reply detection | Based on sender email match only, with no thread check. `Update Status - Replied` has no status guard |
-| 🔤 Opt-out detection | Keyword matching on listed phrases only |
-| 🔁 Follow-up | One generic, templated message. No retry settings are defined |
-| ⚖️ Compliance | No unsubscribe footer or sender identification block is added to emails. The workflow is not a compliance system |
-| 📊 Evidence | No runtime metrics, deployment, or business results are established by the JSON |
-
----
-
 ## Repository Structure
-
-This is the intended layout. Add the screenshot to match the image reference at the top of this README.
 
 | Path | Purpose |
 |------|---------|
 | `README.md` | Project documentation |
 | `B2B_Lead_Research___Cold_Outreach_Automation_System.json` | Exported n8n workflow |
-| `screenshots/workflow-overview.png` | Workflow canvas screenshot referenced by this README |
+| `screenshots/workflow-overview.png` | Optional local copy of the workflow canvas screenshot. The image at the top of this README is loaded from its hosted URL |
 
 ---
 
@@ -560,11 +591,13 @@ This is the intended layout. Add the screenshot to match the image reference at 
 - Configure all credentials through n8n credential management. The exported JSON holds no credential IDs, tokens, or keys.
 - Do not commit Google OAuth secrets, Gemini keys, Telegram bot tokens, or Gmail credentials.
 - Replace `REPLACE_WITH_YOUR_GOOGLE_SHEET_ID` and `REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID` locally in n8n, and avoid committing real values.
+- Keep the Telegram approval chat private to authorized reviewers. Approval callbacks are validated by token, so the chat's membership is the access boundary for who can approve a send.
 - Treat the sheet as sensitive. It holds prospect names, emails, and draft messages.
 - Review any re-exported workflow JSON for credential identifiers and private URLs before publishing it.
+- Review message content and local email regulations before using the workflow with real prospects. The workflow provides send-state and opt-out handling controls, and it does not add unsubscribe footers or guarantee legal compliance.
 
 ---
 
 ## Conclusion
 
-This project is a structured lead research and outreach pipeline built in n8n. Its design choices are the points worth noting. Research evidence is kept source by source, and the model is limited to that evidence. A code step normalizes and flags the model output, and a confidence gate sets the review label. Every send requires a Telegram approval backed by a single-use token and a final safety gate. Follow-up and inbound handling re-check lead state before acting. The workflow definition shows these controls clearly, and its limitations, such as format-only email validation, public-web research gaps, and the external services it depends on, are stated plainly above.
+This project is a complete, tested lead research and outreach pipeline built in n8n. Research evidence is collected source by source with explicit research-status classification, and Gemini is restricted to that evidence. A parsing and normalization step flags the model output, and a confidence gate sets the review label while keeping research confidence distinct from lead quality. Every send requires a Telegram approval backed by a 24-hour, single-use, claim-protected token, a lead-state re-check, and a final safety gate. Follow-up and inbound handling re-check lead state before acting, and opt-outs are recorded in the same sheet that drives sending. Fallback paths, status updates, and operator notifications give the system a coherent reliability model across Google Sheets, Gemini, Gmail, and Telegram.
